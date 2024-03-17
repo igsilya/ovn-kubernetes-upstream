@@ -938,7 +938,18 @@ func (bnc *BaseNetworkController) createNetworkPolicy(policy *knet.NetworkPolicy
 				ingress.addPortPolicy(&portJSON)
 			}
 
+			var ingressFrom []knet.NetworkPolicyPeer
 			for _, fromJSON := range ingressJSON.From {
+				if !networkPolicyPeerSelectsEverything(fromJSON) {
+					ingressFrom = append(ingressFrom, fromJSON)
+				} else {
+					// This is the only one we need, it selects everything.
+					ingressFrom = []knet.NetworkPolicyPeer{fromJSON}
+					break
+				}
+			}
+
+			for _, fromJSON := range ingressFrom {
 				handler, err := bnc.setupGressPolicy(np, ingress, fromJSON)
 				if err != nil {
 					return err
@@ -964,7 +975,18 @@ func (bnc *BaseNetworkController) createNetworkPolicy(policy *knet.NetworkPolicy
 				egress.addPortPolicy(&portJSON)
 			}
 
+			var egressTo []knet.NetworkPolicyPeer
 			for _, toJSON := range egressJSON.To {
+				if !networkPolicyPeerSelectsEverything(toJSON) {
+					egressTo = append(egressTo, toJSON)
+				} else {
+					// This is the only one we need, it selects everything.
+					egressTo = []knet.NetworkPolicyPeer{toJSON}
+					break
+				}
+			}
+
+			for _, toJSON := range egressTo {
 				handler, err := bnc.setupGressPolicy(np, egress, toJSON)
 				if err != nil {
 					return err
@@ -1051,6 +1073,32 @@ func (bnc *BaseNetworkController) createNetworkPolicy(policy *knet.NetworkPolicy
 // config.Kubernetes.HostNetworkNamespace will be included with empty NamespaceSelector.
 func useNamespaceAddrSet(peer knet.NetworkPolicyPeer) bool {
 	return peer.NamespaceSelector != nil && peer.PodSelector == nil
+}
+
+// networkPolicyPeerSelectsEverything returns true if the provided policy peer
+// selects every pod in every namespace.  This function doesn't examine all the
+// addresses in the IPBlock, so it will return false, even if IPBlock contains
+// every possible IP.
+func networkPolicyPeerSelectsEverything(peer knet.NetworkPolicyPeer) bool {
+	if peer.IPBlock != nil {
+		return false
+	}
+
+	if peer.NamespaceSelector == nil || useNamespaceAddrSet(peer) {
+		return false
+	}
+
+	namespaceSelector, err := metav1.LabelSelectorAsSelector(peer.NamespaceSelector)
+	if err != nil {
+		return false
+	}
+
+	podSelector, err := metav1.LabelSelectorAsSelector(peer.PodSelector)
+	if err != nil {
+		return false
+	}
+
+	return namespaceSelector.Empty() && podSelector.Empty()
 }
 
 func (bnc *BaseNetworkController) setupGressPolicy(np *networkPolicy, gp *gressPolicy,
