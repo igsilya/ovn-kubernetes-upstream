@@ -168,11 +168,16 @@ export NUM_WORKER_NODES=3
 if [ "$SINGLE_NODE_CLUSTER" == true ]; then
 	export NUM_WORKER_NODES=1
 fi
+# ginko has a special output format for GitHub Actions.
+if [ "$GITHUB_ACTIONS" = "true" ]; then
+	export OUTPUT_FORMAT='--github-output'
+fi
 ginkgo --nodes=${NUM_NODES} \
 	--focus=${FOCUS} \
 	--skip=${SKIPPED_TESTS} \
 	--timeout=3h \
 	--flake-attempts=${FLAKE_ATTEMPTS} \
+	${OUTPUT_FORMAT} \
 	/usr/local/bin/e2e.test \
 	-- \
 	--kubeconfig=${HOME}/ovn.conf \

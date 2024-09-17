@@ -168,11 +168,17 @@ export NUM_NODES=2
 
 FOCUS=$(echo ${@:1} | sed 's/ /\\s/g')
 
+# ginko has a special output format for GitHub Actions.
+export OUTPUT_FORMAT=v
+if [ "$GITHUB_ACTIONS" = "true" ]; then
+  export OUTPUT_FORMAT=github-output
+fi
+
 pushd e2e
 
 go mod download
 go test -test.timeout 180m -v . \
-        -ginkgo.v \
+        -ginkgo.${OUTPUT_FORMAT} \
         -ginkgo.focus ${FOCUS:-.} \
         -ginkgo.timeout 3h \
         -ginkgo.flake-attempts ${FLAKE_ATTEMPTS:-2} \
